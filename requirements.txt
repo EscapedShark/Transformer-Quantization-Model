@@ -1,0 +1,28 @@
+# Deep Learning Framework
+torch==2.5.1
+torchvision==0.20.1
+torchaudio==2.5.1
+
+# Data Processing and Analysis
+numpy==2.2.1
+pandas==2.2.3
+scikit-learn==1.6.0
+scipy==1.14.1
+
+# Data Collection
+yfinance==0.2.51
+pymongo==4.10.1
+requests>=3.0.0
+
+# Visualization
+matplotlib==3.10.0
+seaborn==0.13.2
+plotly==5.24.1
+
+# Date and Time Handling
+python-dateutil==2.9.0.post0
+pytz==2024.2
+
+# Utilities
+joblib==1.4.2
+typing_extensions>=4.0.0

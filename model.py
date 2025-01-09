@@ -32,33 +32,41 @@ class StockDataset(Dataset):
         self.sequence_length = sequence_length
         
         # 创建数据的深拷贝以避免 SettingWithCopyWarning
+        # copy data to avoid SettingWithCopyWarning
         data = data.copy()
         
         # 计算收益率和平滑收益率
+        # calculate returns and smooth returns
         data.loc[:, 'returns'] = data['Close'].pct_change()
         data.loc[:, 'smooth_returns'] = data['returns'].rolling(window=5).mean()
         
         # 准备特征
+        # prepare features
         features = []
         features.extend(['Open', 'High', 'Low', 'Close', 'Volume'])
         features.extend(['MA5', 'MA20', 'RSI', 'MACD'])
         
         # 标准化数据
+        # scale data
         self.scaler = MinMaxScaler()
         scaled_data = self.scaler.fit_transform(data[features].values)
         
         # 创建序列数据
+        # create sequence data
         self.X = []
         self.y = []
         
         # 设置阈值
-        threshold = 0.001  # 0.1%的阈值
+        # set threshold
+        threshold = 0.001  # 0.1%的阈值 threshold of 0.1%
         
         for i in range(len(scaled_data) - sequence_length):
             # 确保有足够的数据并且smooth_returns不是NaN
+            # make sure there is enough data and smooth_returns is not NaN
             if i + sequence_length < len(data) and pd.notna(data['smooth_returns'].iloc[i + sequence_length]):
                 return_value = data['smooth_returns'].iloc[i + sequence_length]
                 # 只有当收益率超过阈值时才添加样本
+                # only add samples if the return is above the threshold
                 if abs(return_value) >= threshold:
                     self.X.append(scaled_data[i:(i + sequence_length)])
                     self.y.append(1 if return_value > 0 else 0)
@@ -67,10 +75,11 @@ class StockDataset(Dataset):
             raise ValueError("No valid sequences could be created from the data")
             
         # 转换为张量
+        # convert to tensors
         self.X = torch.FloatTensor(np.array(self.X))
         self.y = torch.LongTensor(np.array(self.y))
         
-        print(f"Dataset created with {len(self.X)} samples")  # 添加调试信息
+        print(f"Dataset created with {len(self.X)} samples")  # 添加调试信息 debug information
 
     def __len__(self):
         return len(self.X)
@@ -81,12 +90,12 @@ class StockDataset(Dataset):
 class TransformerPredictor(nn.Module):
     def __init__(self, input_dim: int, num_heads: int = 4, num_layers: int = 2, dropout: float = 0.1):
         """
-        初始化Transformer模型
+        Initialize the Transformer model
         Args:
-            input_dim: 输入特征维度
-            num_heads: 注意力头数
-            num_layers: Transformer层数
-            dropout: Dropout率
+            input_dim: Input feature dimension
+            num_heads: Number of attention heads
+            num_layers: Number of Transformer layers
+            dropout: Dropout rate
         """
         super().__init__()
         
@@ -109,11 +118,11 @@ class TransformerPredictor(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
-        前向传播
+        Forward pass
         Args:
-            x: 输入数据，shape: (batch_size, seq_len, input_dim)
+            x: Input data, shape: (batch_size, seq_len, input_dim)
         Returns:
-            预测结果
+            Prediction results
         """
         x = self.embedding(x)
         x = self.transformer_encoder(x)
@@ -123,10 +132,10 @@ class TransformerPredictor(nn.Module):
 class StockPredictor:
     def __init__(self, model_params: Dict, training_params: Dict):
         """
-        初始化预测器
+        Initialize the predictor
         Args:
-            model_params: 模型参数
-            training_params: 训练参数
+            model_params: Model parameters
+            training_params: Training parameters
         """
         self.model = TransformerPredictor(**model_params)
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -141,18 +150,18 @@ class StockPredictor:
 
     def prepare_data(self, data: pd.DataFrame) -> Tuple[DataLoader, DataLoader]:
         """
-        准备训练和验证数据
+        Prepare training and validation data
         """
-        # 分割训练集和验证集
+        # 分割训练集和验证集 split training and validation set
         train_size = int(0.8 * len(data))
         train_data = data[:train_size]
         val_data = data[train_size:]
         
-        # 创建数据集
+        # 创建数据集 create datasets
         train_dataset = StockDataset(train_data)
         val_dataset = StockDataset(val_data)
         
-        # 创建数据加载器
+        # 创建数据加载器 create data loaders
         train_loader = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True)
         val_loader = DataLoader(val_dataset, batch_size=self.batch_size)
         
@@ -160,9 +169,9 @@ class StockPredictor:
 
     def train(self, train_loader: DataLoader, val_loader: DataLoader):
         """
-        训练模型
+        Train the model
         """
-        # 检查数据加载器
+        # 检查数据加载器 check data loaders
         if len(train_loader) == 0:
             raise ValueError("Training data loader is empty")
         if len(val_loader) == 0:
@@ -192,11 +201,11 @@ class StockPredictor:
                 train_total += batch_y.size(0)
                 train_correct += predicted.eq(batch_y).sum().item()
             
-                if (batch_idx + 1) % 10 == 0:  # 每10个批次打印一次进度
+                if (batch_idx + 1) % 10 == 0:  # 每10个批次打印一次进度 print progress every 10 batches
                     print(f'Epoch [{epoch+1}/{self.num_epochs}] Batch [{batch_idx+1}/{len(train_loader)}] '
                         f'Loss: {loss.item():.4f}')
         
-            # 验证
+            # 验证 validate
             self.model.eval()
             val_loss = 0
             val_correct = 0
@@ -232,30 +241,30 @@ class StockPredictor:
 
 def prepare_prediction_data(collector: StockDataCollector) -> pd.DataFrame:
     """
-    准备预测所需的价格数据
+    Prepare price data required for prediction
     """
-    # 获取历史数据
+    # 获取历史数据 get historical data
     hist_data = collector.stock.history(period="max")
     
-    # 计算技术指标
+    # 计算技术指标 calculate technical indicators
     hist_data.loc[:, 'MA5'] = hist_data['Close'].rolling(window=5).mean()
     hist_data.loc[:, 'MA20'] = hist_data['Close'].rolling(window=20).mean()
     hist_data.loc[:, 'RSI'] = calculate_rsi(hist_data['Close'])
     hist_data.loc[:, 'MACD'] = calculate_macd(hist_data['Close'])
     
-    # 计算收益率和平滑收益率
+    # 计算收益率和平滑收益率 calculate returns and smooth returns
     hist_data.loc[:, 'returns'] = hist_data['Close'].pct_change()
     hist_data.loc[:, 'smooth_returns'] = hist_data['returns'].rolling(window=5).mean()
     
-    # 删除包含NaN的行
+    # 删除包含NaN的行 remove rows with NaN values
     hist_data = hist_data.dropna()
     
-    print(f"Prepared data with {len(hist_data)} rows")  # 添加调试信息
+    print(f"Prepared data with {len(hist_data)} rows")  # 添加调试信息 debug information
     
     return hist_data
 
 def calculate_rsi(prices, period=14):
-    """计算RSI指标"""
+    """Calculate RSI indicator"""
     delta = prices.diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
@@ -263,24 +272,24 @@ def calculate_rsi(prices, period=14):
     return 100 - (100 / (1 + rs))
 
 def calculate_macd(prices, slow=24, fast=12, signal=9):  # 调整MACD参数
-    """计算MACD指标"""
+    """Calculate MACD indicator"""
     exp1 = prices.ewm(span=fast, adjust=False).mean()
     exp2 = prices.ewm(span=slow, adjust=False).mean()
     macd = exp1 - exp2
     signal_line = macd.ewm(span=signal, adjust=False).mean()
     return macd - signal_line
 
-# 使用示例
+# 使用示例 Example Usage
 def main():
-    # 初始化数据收集器
+    # 初始化数据收集器 initialize data collector
     collector = StockDataCollector("AAPL", "mongodb://localhost:27017/")
     
-    # 准备数据
+    # 准备数据 prepare data
     data = prepare_prediction_data(collector)
     
-    # 模型参数
+    # 模型参数 model parameters
     model_params = {
-        'input_dim': 9,  # 5个价格特征 + 4个技术指标
+        'input_dim': 9,  # 5个价格特征 + 4个技术指标 5 price features + 4 technical indicators
         'num_heads': 4,
         'num_layers': 2,
         'dropout': 0.1
@@ -288,21 +297,21 @@ def main():
     
     # 训练参数
     training_params = {
-        'learning_rate': 0.0005,  # 降低学习率
-        'batch_size': 64,        # 增加批次大小
-        'num_epochs': 100        # 增加训练轮数
+        'learning_rate': 0.0005,  # 降低学习率 reduce learning rate
+        'batch_size': 64,        # 增加批次大小 increase batch size
+        'num_epochs': 100        # 增加训练轮数  increase number of epochs
     }
     
-    # 初始化预测器
+    # 初始化预测器 initialize predictor
     predictor = StockPredictor(model_params, training_params)
     
-    # 准备数据加载器
+    # 准备数据加载器 prepare data loaders
     train_loader, val_loader = predictor.prepare_data(data)
     
-    # 训练模型
+    # 训练模型 train model
     predictor.train(train_loader, val_loader)
 
-    # 保存模型
+    # 保存模型 save model
     torch.save(predictor.model.state_dict(), 'transformer_model.pth')
 
 if __name__ == "__main__":

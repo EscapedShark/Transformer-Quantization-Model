@@ -13,13 +13,15 @@ class StockDataCollector:
         self.db = self.client['stock_data']
         
     def collect_basic_info(self):
-        """收集基本股票数据(OHLCV)和当前财务指标"""
+        """Collect basic stock data (OHLCV) and current financial metrics"""
         collection = self.db['basic_info']
         
         # 获取历史OHLCV数据
+        # get historical stock price data
         hist_data = self.stock.history(period="max")
         
         # 获取当前财务指标
+        # get current financial metrics
         info = self.stock.info
         
         basic_data = {
@@ -42,24 +44,24 @@ class StockDataCollector:
         )
         
     def collect_historical_financials(self):
-        """收集历史财务数据，包括季度和年度数据"""
+        """Collect historical financial data, including quarterly and annual data"""
         collection = self.db['historical_financials']
         
         try:
-            # 获取财务报表数据
-            # 资产负债表
-            balance_sheet_y = self.stock.balance_sheet  # 年度数据
-            balance_sheet_q = self.stock.quarterly_balance_sheet  # 季度数据
+            # 获取财务报表数据 get financial statements data
+            # 资产负债表 get balance sheet data
+            balance_sheet_y = self.stock.balance_sheet  # 年度数据 get annual data
+            balance_sheet_q = self.stock.quarterly_balance_sheet  # 季度数据 get quarterly data
             
-            # 利润表
-            income_stmt_y = self.stock.income_stmt  # 年度数据
-            income_stmt_q = self.stock.quarterly_income_stmt  # 季度数据
+            # 利润表 get income statement data
+            income_stmt_y = self.stock.income_stmt  # 年度数据 get annual data
+            income_stmt_q = self.stock.quarterly_income_stmt  # 季度数据 get quarterly data
             
-            # 现金流量表
-            cash_flow_y = self.stock.cash_flow  # 年度数据
-            cash_flow_q = self.stock.quarterly_cash_flow  # 季度数据
+            # 现金流量表 get cash flow data
+            cash_flow_y = self.stock.cash_flow  # 年度数据 get annual data
+            cash_flow_q = self.stock.quarterly_cash_flow  # 季度数据 get quarterly data
             
-            # 整理财务数据
+            # 整理财务数据 prepare financials data
             financials_data = {
                 'symbol': self.symbol,
                 'last_updated': datetime.now(),
@@ -75,50 +77,57 @@ class StockDataCollector:
                 }
             }
             
-            # 计算历史财务比率
+            # 计算历史财务比率 calculate historical financial ratios
             self._calculate_historical_ratios(financials_data)
             
-            # 更新数据库
+            # 更新数据库 update database
             collection.update_one(
                 {'symbol': self.symbol},
                 {'$set': financials_data},
                 upsert=True
             )
             
-            print(f"成功收集 {self.symbol} 的历史财务数据")
+            print(f"Successfully collected historical financial data for {self.symbol}")
             return True
             
         except Exception as e:
-            print(f"收集历史财务数据时发生错误: {str(e)}")
+            print(f"Error occurred while collecting historical financial data: {str(e)}")
             return False
     
     def _calculate_historical_ratios(self, financials_data):
-        """计算历史财务比率"""
+        """Calculate historical financial ratios"""
         try:
             # 获取历史股价数据用于计算市值相关指标
+            # get historical stock price data for market-related metrics
             hist_prices = self.stock.history(period="max")
             
             # 准备季度数据
+            # prepare quarterly data
             income_q = pd.DataFrame(financials_data['quarterly_data']['income_statement'])
             balance_q = pd.DataFrame(financials_data['quarterly_data']['balance_sheet'])
             
             # 计算季度关键指标
+            # calculate quarterly key metrics
             quarterly_ratios = {}
             for date in income_q.columns:
                 try:
                     # 获取该季度末的股价
+                    # get the closing price at the end of that quarter
                     price_date = pd.to_datetime(date)
                     closest_price = hist_prices.asof(price_date)['Close'] if not hist_prices.empty else None
                     
                     # 基本每股收益
+                    # basic earnings per share
                     net_income = income_q[date].get('Net Income', None)
                     shares = balance_q[date].get('Share Issued', None)
                     eps = net_income / shares if net_income is not None and shares is not None else None
                     
                     # 市盈率 (P/E)
+                    # price-to-earnings ratio
                     pe_ratio = closest_price / eps if eps and closest_price else None
                     
                     # 市净率 (P/B)
+                    # price-to-book ratio
                     total_equity = balance_q[date].get('Total Stockholder Equity', None)
                     book_value_per_share = total_equity / shares if total_equity is not None and shares is not None else None
                     pb_ratio = closest_price / book_value_per_share if book_value_per_share and closest_price else None
@@ -146,20 +155,22 @@ class StockDataCollector:
                     }
                     
                 except Exception as e:
-                    print(f"计算 {date} 的财务比率时发生错误: {str(e)}")
+                    print(f"Error calculating financial ratios for {date}: {str(e)}")
                     continue
             
             # 将计算的比率添加到财务数据中
+            # add calculated ratios to financial data
             financials_data['quarterly_ratios'] = quarterly_ratios
             
         except Exception as e:
-            print(f"计算历史财务比率时发生错误: {str(e)}")
+            print(f"Error occurred while calculating historical financial ratios: {str(e)}")
     
     def collect_options_data(self):
-        """收集期权数据"""
+        """Collect options data"""
         collection = self.db['options_data']
         
         # 获取所有可用的期权到期日
+        # get all available option expiration dates
         expiration_dates = self.stock.options
         
         options_data = []
@@ -167,6 +178,7 @@ class StockDataCollector:
             opt = self.stock.option_chain(date)
             
             # 合并看涨和看跌期权数据
+            # combine call and put options data
             calls = opt.calls.to_dict('records')
             puts = opt.puts.to_dict('records')
             
@@ -189,23 +201,27 @@ class StockDataCollector:
         
     def collect_analyst_ratings(self):
         """
-        收集分析师评级数据，并保留历史记录
-        每次收集的数据会作为新的记录追加到数据库中
+        Collect analyst ratings data and maintain historical records.
+        Each collected data will be appended as a new record in the database.
         """
         collection = self.db['analyst_ratings']
     
         # 获取分析师推荐
+        # get analyst recommendations
         recommendations = self.stock.recommendations
         if recommendations is not None:
             # 添加收集时间戳
+            # add collection timestamp
             current_time = datetime.now()
         
             # 转换recommendations为列表格式并添加采集时间
+            # convert recommendations to list format and add collection timestamp
             recommendations_list = recommendations.to_dict('records')
             for record in recommendations_list:
                 record['collected_at'] = current_time
         
             # 更新数据库，使用$push将新数据追加到历史记录中
+            # update database, use $push to append new data to historical records
             collection.update_one(
                 {'symbol': self.symbol},
                 {
@@ -221,19 +237,21 @@ class StockDataCollector:
                 upsert=True
             )
         
-            print(f"成功收集 {self.symbol} 的分析师评级数据，共 {len(recommendations_list)} 条记录")
+            print(f"Successfully collected analyst ratings data for {self.symbol}, total {len(recommendations_list)} records")
             return True
         else:
-            print(f"未能获取到 {self.symbol} 的分析师评级数据")
+            print(f"Failed to retrieve analyst ratings data for {self.symbol}")
             return False
             
     def collect_industry_data(self):
-        """收集行业和市场指数数据"""
+        """Collect industry and market index data"""
         collection = self.db['industry_data']
         
         # 获取标普500指数数据作为市场指标
+        # get S&P 500 index data as market index
         sp500 = yf.Ticker('^GSPC')
         # 获取科技行业ETF数据作为行业指标
+        # get Technology sector ETF data as industry index
         tech_etf = yf.Ticker('XLK')
         
         market_data = {
@@ -250,10 +268,11 @@ class StockDataCollector:
         )
         
     def collect_peer_data(self):
-        """收集同行业公司数据"""
+        """Collect peer companies data"""
         collection = self.db['peer_data']
         
         # 苹果的主要竞争对手
+        # major competitors of Apple
         peers = ['MSFT', 'GOOGL', 'AMZN', 'META']
         
         peer_data = {
@@ -273,58 +292,66 @@ class StockDataCollector:
         )
     
     def collect_all_data(self):
-        """收集所有数据"""
-        print(f"开始收集 {self.symbol} 的所有数据...")
+        """Collect all data"""
+        print(f"Starting to collect all data for {self.symbol}...")
         
         # 收集基本信息
+        # collect basic info
         try:
             self.collect_basic_info()
-            print("基本信息收集完成")
+            print("Basic information collection completed")
         except Exception as e:
-            print(f"收集基本信息时出错: {str(e)}")
+            print(f"Error occurred while collecting basic info: {str(e)}")
         
         # 收集历史财务数据
+        # collect historical financials
         try:
             self.collect_historical_financials()
-            print("历史财务数据收集完成")
+            print("Historical financial data collection completed")
         except Exception as e:
-            print(f"收集历史财务数据时出错: {str(e)}")
+            print(f"Error occurred while collecting historical financial data: {str(e)}")
         
         # 收集期权数据
+        # collect options data
         try:
             self.collect_options_data()
-            print("期权数据收集完成")
+            print("Options data collection completed")
         except Exception as e:
-            print(f"收集期权数据时出错: {str(e)}")
+            print(f"Error occurred while collecting options data: {str(e)}")
         
         # 收集分析师评级
+        # collect analyst ratings
         try:
             self.collect_analyst_ratings()
-            print("分析师评级数据收集完成")
+            print("Analyst ratings data collection completed")
         except Exception as e:
-            print(f"收集分析师评级时出错: {str(e)}")
+            print(f"Error occurred while collecting analyst ratings: {str(e)}")
         
         # 收集行业数据
+        # collect industry data
         try:
             self.collect_industry_data()
-            print("行业数据收集完成")
+            print("Industry data collection completed")
         except Exception as e:
-            print(f"收集行业数据时出错: {str(e)}")
+            print(f"Error occurred while collecting industry data: {str(e)}")
         
         # 收集同行数据
+        # collect peer data
         try:
             self.collect_peer_data()
-            print("同行数据收集完成")
+            print("Peer data collection completed")
         except Exception as e:
-            print(f"收集同行数据时出错: {str(e)}")
+            print(f"Error occurred while collecting peer data: {str(e)}")
         
-        print(f"{self.symbol} 的所有数据收集完成")
+        print(f"All data collection for {self.symbol} completed")
 
-# 使用示例
+# 使用示例 Example Usage
 if __name__ == "__main__":
     # 替换为你的MongoDB连接URI
+    # replace with your MongoDB connection URI
     MONGODB_URI = "mongodb://localhost:27017/"
     collector = StockDataCollector("AAPL", MONGODB_URI)
     
     # 收集所有数据
+    # collect all data
     collector.collect_all_data()
