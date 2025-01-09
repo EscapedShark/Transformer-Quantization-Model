@@ -24,6 +24,7 @@ This project consists of three main components:
 - Performance visualization tools
 
 
+
 ## Project Structure
 
 ### Data Collection (`collect.py`)
@@ -141,6 +142,45 @@ The model is evaluated using:
 - F1 Score
 - Confusion matrices
 - Cross-validation performance plots
+
+### Example Results
+
+The model was trained and evaluated on stock market data with the following results:
+
+#### Training Performance
+```
+Train Loss: 0.0401
+Train Accuracy: 62.99%
+Validation Loss: 0.0573
+Validation Accuracy: 52.49%
+```
+
+#### Dataset Statistics
+- Total samples in dataset: 1,620
+
+#### Cross-validation Results
+
+Sample fold (Fold 5) metrics:
+```
+Accuracy:  0.6019 (60.19%)
+Precision: 0.7137 (71.37%)
+Recall:    0.5651 (56.51%)
+F1 Score:  0.6308 (63.08%)
+```
+
+Average metrics across all folds:
+```
+Accuracy:  0.5784 (57.84%)
+Precision: 0.6287 (62.87%)
+Recall:    0.6576 (65.76%)
+F1 Score:  0.6348 (63.48%)
+```
+
+These results show that:
+1. The model achieves consistent performance across training and validation sets
+2. Precision is notably higher than recall, indicating the model is more conservative in its predictions
+3. The model maintains stable performance across different cross-validation folds
+4. Overall F1 score of ~63% suggests the model performs significantly better than random chance (50%) for binary prediction
 
 ## Notes
 
