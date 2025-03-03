@@ -6,7 +6,7 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 import seaborn as sns
 import matplotlib.pyplot as plt
 from typing import Dict, Tuple, List
-from model import StockPredictor, prepare_prediction_data, StockDataset, StockDataCollector
+from model_transformer import StockPredictor, prepare_prediction_data, StockDataset, StockDataCollector
 
 class ModelTester:
     def __init__(self, stock_symbol: str, n_splits: int = 5):
